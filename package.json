@@ -1,0 +1,9 @@
+{
+  "name": "debt-trainer",
+  "version": "1.0.0",
+  "description": "Тренажёр взыскателя",
+  "main": "index.html",
+  "scripts": {
+    "start": "node -e \"console.log('Open index.html in browser')\""
+  }
+}

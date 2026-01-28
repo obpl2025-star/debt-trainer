@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тренажёр взыскателя</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+        const { createClient } = supabase;
+
+        const supabaseUrl = 'https://aybfxlijhfrdlshhymmi.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5YmZ4bGlqaGZyZGxzaGh5bW1pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1ODU1MjMsImV4cCI6MjA4NTE2MTUyM30.LNkyJNt_0tkHFS52WhYWNyWQbP6wU5mi-lCv7iexVj8';
+        const supabaseClient = createClient(supabaseUrl, supabaseKey);
+
+        const Icon = ({ name, size = 24, className = "" }) => {
+            const icons = {
+                send: "M2 21l21-9L2 3v7l15 2-15 2z",
+                refresh: "M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z",
+                user: "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
+                home: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
+                check: "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+                x: "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
+                alert: "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z",
+                login: "M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"
+            };
+            return (
+                <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+                    <path d={icons[name] || ""} />
+                </svg>
+            );
+        };
+
+        const DebtCollectionTrainer = () => {
+            const [employee, setEmployee] = useState(null);
+            const [employeeForm, setEmployeeForm] = useState({ login: '', password: '' });
+            const [client, setClient] = useState(null);
+            const [dialogueHistory, setDialogueHistory] = useState([]);
+            const [userInput, setUserInput] = useState('');
+            const [isThinking, setIsThinking] = useState(false);
+            const [conversationCount, setConversationCount] = useState(0);
+            const [motivationsUsed, setMotivationsUsed] = useState(0);
+            const [paymentResult, setPaymentResult] = useState(null);
+            const [selectedArchetype, setSelectedArchetype] = useState(null);
+            const [rudenessWarnings, setRudenessWarnings] = useState([]);
+            const [isLoading, setIsLoading] = useState(false);
+
+            const maleFirstNames = ['Александр', 'Дмитрий', 'Максим', 'Сергей', 'Андрей', 'Алексей'];
+            const femaleFirstNames = ['Елена', 'Ольга', 'Анна', 'Наталья', 'Татьяна', 'Мария'];
+            const maleLastNames = ['Иванов', 'Петров', 'Сидоров', 'Смирнов', 'Кузнецов', 'Попов'];
+            const femaleLastNames = ['Иванова', 'Петрова', 'Сидорова', 'Смирнова', 'Кузнецова', 'Попова'];
+            const maleMiddleNames = ['Александрович', 'Дмитриевич', 'Сергеевич', 'Андреевич', 'Максимович'];
+            const femaleMiddleNames = ['Александровна', 'Дмитриевна', 'Сергеевна', 'Андреевна', 'Максимовна'];
+
+            const archetypes = [
+                { type: 'aggressive', name: 'Агрессивный', description: 'Раздражён, переходит на повышенный тон' },
+                { type: 'evasive', name: 'Убегает от разговора', description: 'Уклоняется от темы' },
+                { type: 'promising', name: 'Обещающий', description: 'Обещает без конкретики' },
+                { type: 'victim', name: 'Жертва обстоятельств', description: 'Жалуется на трудности' },
+                { type: 'silent', name: 'Молчаливый', description: 'Отвечает односложно' },
+                { type: 'manipulator', name: 'Манипулятор', description: 'Переводит стрелки' },
+                { type: 'angry', name: 'Злой', description: 'Выражает негатив' },
+                { type: 'confused', name: 'Растерянный', description: 'Задаёт много вопросов' }
+            ];
+
+            const handleEmployeeLogin = async () => {
+                if (!employeeForm.login.trim() || !employeeForm.password.trim()) {
+                    alert('Введите логин и пароль');
+                    return;
+                }
+                setIsLoading(true);
+                try {
+                    const { data: accounts, error } = await supabaseClient.from('accounts').select('*').eq('login', employeeForm.login).eq('password', employeeForm.password);
+                    if (error) throw error;
+                    if (!accounts || accounts.length === 0) {
+                        alert('Неверный логин или пароль');
+                        setIsLoading(false);
+                        return;
+                    }
+                    const account = accounts[0];
+                    const emp = { fullName: account.full_name, login: account.login, loginTime: new Date().toISOString() };
+                    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    await supabaseClient.from('sessions').insert({ session_id: sessionId, employee: emp.fullName, login_time: emp.loginTime, status: 'active' });
+                    emp.sessionId = sessionId;
+                    setEmployee(emp);
+                } catch (error) {
+                    alert('Ошибка: ' + error.message);
+                }
+                setIsLoading(false);
+            };
+
+            const generateRandomClient = () => {
+                const isMale = Math.random() > 0.5;
+                const firstName = isMale ? maleFirstNames[Math.floor(Math.random() * maleFirstNames.length)] : femaleFirstNames[Math.floor(Math.random() * femaleFirstNames.length)];
+                const lastName = isMale ? maleLastNames[Math.floor(Math.random() * maleLastNames.length)] : femaleLastNames[Math.floor(Math.random() * femaleLastNames.length)];
+                const middleName = isMale ? maleMiddleNames[Math.floor(Math.random() * maleMiddleNames.length)] : femaleMiddleNames[Math.floor(Math.random() * femaleMiddleNames.length)];
+                return { firstName, fullName: `${lastName} ${firstName} ${middleName}`, age: Math.floor(Math.random() * 41) + 25, debt: (Math.floor(Math.random() * 19) + 2) * 50, overdueDays: Math.floor(Math.random() * 17) + 1, archetype: archetypes[Math.floor(Math.random() * archetypes.length)] };
+            };
+
+            const startNewCase = () => {
+                setClient(generateRandomClient());
+                setDialogueHistory([]);
+                setUserInput('');
+                setConversationCount(0);
+                setMotivationsUsed(0);
+                setPaymentResult(null);
+                setSelectedArchetype(null);
+                setRudenessWarnings([]);
+            };
+
+            const backToHome = () => { setClient(null); setDialogueHistory([]); setPaymentResult(null); setSelectedArchetype(null); };
+            
+            const handleLogout = async () => {
+                if (employee?.sessionId) {
+                    try {
+                        await supabaseClient.from('sessions').update({ logout_time: new Date().toISOString(), status: 'completed' }).eq('session_id', employee.sessionId);
+                    } catch (e) {}
+                }
+                setEmployee(null);
+            };
+
+            const checkRudeness = (message) => {
+                const msg = message.toLowerCase();
+                const capsCount = (message.match(/[A-ZА-Я]/g) || []).length;
+                const totalLetters = (message.match(/[A-Za-zА-Яа-я]/g) || []).length;
+                if (totalLetters > 10 && capsCount / totalLetters > 0.5) return { isRude: true, reason: "КРИК" };
+                if ((message.match(/!/g) || []).length >= 3) return { isRude: true, reason: "Эмоциональность" };
+                if (['ты должен', 'ты обязан'].some(w => msg.includes(w))) return { isRude: true, reason: 'Переход на "ты"' };
+                return { isRude: false, reason: "" };
+            };
+
+            const analyzeMotivation = (msg) => msg.toLowerCase().includes('промокод') || msg.toLowerCase().includes('скидк') || msg.toLowerCase().includes('пен');
+
+            const analyzeClientAgreement = (history) => {
+                const msgs = history.filter(m => m.speaker === 'client').slice(-3).map(m => m.text.toLowerCase()).join(' ');
+                if (['не буду', 'не могу', 'отстаньте'].some(r => msgs.includes(r))) return { agreed: false, reason: 'Клиент отказался' };
+                if (['хорошо', 'ладно', 'оплачу'].some(a => msgs.includes(a))) return { agreed: true, reason: 'Клиент согласился' };
+                return { agreed: false, reason: 'Нет четкого обещания' };
+            };
+
+            const generateClientResponse = async (userMessage, isRude) => {
+                setIsThinking(true);
+                try {
+                    const history = dialogueHistory.map(m => `${m.speaker === 'manager' ? 'Менеджер' : client.firstName}: ${m.text}`).join('\n');
+                    const response = await fetch("/api/chat", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            userMessage,
+                            clientName: client.firstName,
+                            clientAge: client.age,
+                            clientDebt: client.debt,
+                            clientArchetype: client.archetype.description,
+                            isRude,
+                            history
+                        })
+                    });
+                    const data = await response.json();
+                    setIsThinking(false);
+                    return data.response || "Слушаю вас...";
+                } catch {
+                    setIsThinking(false);
+                    return "Слушаю вас...";
+                }
+            };
+
+            const handleSendMessage = async () => {
+                if (!userInput.trim() || isThinking) return;
+                const msg = userInput;
+                const rudeness = checkRudeness(msg);
+                const hasMot = analyzeMotivation(msg);
+                const newHistory = [...dialogueHistory, { speaker: 'manager', text: msg, isRude: rudeness.isRude }];
+                setDialogueHistory(newHistory);
+                setUserInput('');
+                setConversationCount(conversationCount + 1);
+                if (rudeness.isRude) setRudenessWarnings([...rudenessWarnings, { message: msg, reason: rudeness.reason }]);
+                if (hasMot) setMotivationsUsed(motivationsUsed + 1);
+                const clientResponse = await generateClientResponse(msg, rudeness.isRude);
+                setDialogueHistory([...newHistory, { speaker: 'client', text: clientResponse }]);
+            };
+
+            const handleFinishDialogue = () => {
+                const agreement = analyzeClientAgreement(dialogueHistory);
+                let willPay = false, reason = "";
+                if (rudenessWarnings.length > 0) reason = `Грубости (${rudenessWarnings.length})`;
+                else if (!agreement.agreed) reason = agreement.reason;
+                else if (agreement.agreed && motivationsUsed < 3) reason = `Мало мотиваций (${motivationsUsed}/3)`;
+                else { willPay = true; reason = `Успех: ${motivationsUsed} мотиваций`; }
+                setPaymentResult({ willPay, reason });
+            };
+
+            const handleArchetypeSelection = async (archetypeType) => {
+                setSelectedArchetype(archetypeType);
+                const caseId = `case_${Date.now()}`;
+                try {
+                    await supabaseClient.from('cases').insert({
+                        case_id: caseId, session_id: employee.sessionId, employee: employee.fullName, client: client.fullName,
+                        client_data: client, dialogue: dialogueHistory, motivations_used: motivationsUsed,
+                        rudeness_count: rudenessWarnings.length, rudeness_warnings: rudenessWarnings,
+                        payment_result: paymentResult.willPay, correct_archetype: client.archetype.type,
+                        selected_archetype: archetypeType, archetype_correct: archetypeType === client.archetype.type
+                    });
+                } catch (e) {}
+            };
+
+            if (!employee) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8 flex items-center justify-center">
+                        <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8">
+                            <div className="text-center mb-8">
+                                <Icon name="login" size={64} className="mx-auto text-indigo-600 mb-4" />
+                                <h1 className="text-3xl font-bold text-gray-800 mb-2">Вход в тренажёр</h1>
+                                <p className="text-gray-600">Введите ваши данные</p>
+                            </div>
+                            <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-6">
+                                <p className="text-sm text-blue-800"><strong>ℹ️ Важно:</strong> Войдите с логином и паролем администратора</p>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Логин</label>
+                                    <input type="text" value={employeeForm.login} onChange={(e) => setEmployeeForm({...employeeForm, login: e.target.value})} className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg outline-none" placeholder="Введите логин" disabled={isLoading} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Пароль</label>
+                                    <input type="password" value={employeeForm.password} onChange={(e) => setEmployeeForm({...employeeForm, password: e.target.value})} onKeyPress={(e) => e.key === 'Enter' && handleEmployeeLogin()} className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg outline-none" placeholder="Введите пароль" disabled={isLoading} />
+                                </div>
+                                <button onClick={handleEmployeeLogin} disabled={isLoading} className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-lg disabled:bg-gray-400">
+                                    {isLoading ? 'Вход...' : 'Войти'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!client) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+                        <div className="max-w-4xl mx-auto">
+                            <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+                                <div className="flex justify-between">
+                                    <p className="text-xl font-bold text-indigo-600">{employee.fullName}</p>
+                                    <button onClick={handleLogout} className="px-4 py-2 bg-gray-100 rounded-lg">Выйти</button>
+                                </div>
+                            </div>
+                            <h1 className="text-4xl font-bold text-center mb-8">Тренажёр взыскателя</h1>
+                            <div className="bg-white rounded-2xl shadow-2xl p-12 text-center">
+                                <Icon name="user" size={64} className="mx-auto text-indigo-600 mb-6" />
+                                <button onClick={startNewCase} className="px-12 py-4 bg-indigo-600 text-white text-xl rounded-xl hover:bg-indigo-700 w-full">Начать новый случай</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+                    <div className="max-w-4xl mx-auto">
+                        <div className="bg-white rounded-xl shadow-lg p-6 mb-4">
+                            <div className="flex justify-between items-center mb-4">
+                                <div><h2 className="text-xl font-bold">{client.fullName}</h2><p className="text-sm">{client.age} лет</p></div>
+                                <div className="flex gap-2">
+                                    <button onClick={backToHome} className="px-4 py-2 bg-gray-500 text-white rounded-lg"><Icon name="home" size={18} /></button>
+                                    <button onClick={startNewCase} className="px-4 py-2 bg-gray-100 rounded-lg"><Icon name="refresh" size={18} /></button>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="bg-red-50 p-3 rounded-lg"><p className="font-bold text-red-700">{client.debt} USDT</p><p className="text-xs">Долг</p></div>
+                                <div className="bg-orange-50 p-3 rounded-lg"><p className="font-bold text-orange-700">{client.overdueDays} дней</p><p className="text-xs">Просрочка</p></div>
+                                <div className="bg-indigo-50 p-3 rounded-lg"><p className="font-bold text-indigo-700">{motivationsUsed}</p><p className="text-xs">Мотиваций</p></div>
+                            </div>
+                            {rudenessWarnings.length > 0 && <div className="mt-4 bg-red-50 p-3 rounded-lg"><Icon name="alert" size={18} className="inline text-red-600 mr-2" /><span className="font-bold text-red-800">Ошибки: {rudenessWarnings.length}</span></div>}
+                        </div>
+                        {!paymentResult ? (
+                            <>
+                                <div className="bg-white rounded-xl shadow-lg p-6 mb-4" style={{ height: '400px', display: 'flex', flexDirection: 'column' }}>
+                                    <h3 className="text-lg font-bold mb-4">Диалог</h3>
+                                    <div className="flex-1 overflow-y-auto space-y-3 mb-4">
+                                        {dialogueHistory.length === 0 && <p className="text-center text-gray-500">Начните диалог...</p>}
+                                        {dialogueHistory.map((msg, idx) => (
+                                            <div key={idx} className={msg.speaker === 'manager' ? 'text-right' : 'text-left'}>
+                                                <div className={`inline-block p-3 rounded-lg ${msg.speaker === 'manager' ? msg.isRude ? 'bg-red-600 text-white' : 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>
+                                                    <p className="text-sm">{msg.text}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {isThinking && <p className="text-gray-500 italic text-center">Печатает...</p>}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Ваше сообщение..." className="flex-1 px-4 py-3 border-2 rounded-lg outline-none" disabled={isThinking} />
+                                        <button onClick={handleSendMessage} disabled={!userInput.trim() || isThinking} className="px-6 py-3 bg-indigo-600 text-white rounded-lg disabled:bg-gray-300"><Icon name="send" size={20} /></button>
+                                    </div>
+                                </div>
+                                {conversationCount >= 2 && <button onClick={handleFinishDialogue} className="w-full bg-green-600 text-white py-3 rounded-lg">Завершить</button>}
+                            </>
+                        ) : !selectedArchetype ? (
+                            <div className="bg-white rounded-xl shadow-lg p-8">
+                                <h2 className="text-2xl font-bold mb-6 text-center">Какой архетип?</h2>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {archetypes.map(arch => <button key={arch.type} onClick={() => handleArchetypeSelection(arch.type)} className="p-4 bg-gray-50 hover:bg-indigo-50 border-2 rounded-lg"><p className="font-bold">{arch.name}</p></button>)}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+                                <Icon name={paymentResult.willPay ? "check" : "x"} size={64} className={`mx-auto mb-4 ${paymentResult.willPay ? 'text-green-600' : 'text-red-600'}`} />
+                                <h2 className="text-3xl font-bold mb-4">{paymentResult.willPay ? 'Успех!' : 'Неудача'}</h2>
+                                <p className="mb-6">{paymentResult.reason}</p>
+                                <div className={`p-4 rounded-lg mb-6 ${selectedArchetype === client.archetype.type ? 'bg-green-50' : 'bg-red-50'}`}>
+                                    <p>Вы выбрали: {archetypes.find(a => a.type === selectedArchetype)?.name}</p>
+                                    <p>Правильно: {client.archetype.name}</p>
+                                </div>
+                                <button onClick={startNewCase} className="px-8 py-3 bg-indigo-600 text-white rounded-lg">Новый случай</button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<DebtCollectionTrainer />, document.getElementById('root'));
+    </script>
+</body>
+</html>

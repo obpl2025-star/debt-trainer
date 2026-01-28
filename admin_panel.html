@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель обучения</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { createClient } = supabase;
+
+        const supabaseUrl = 'https://aybfxlijhfrdlshhymmi.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5YmZ4bGlqaGZyZGxzaGh5bW1pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1ODU1MjMsImV4cCI6MjA4NTE2MTUyM30.LNkyJNt_0tkHFS52WhYWNyWQbP6wU5mi-lCv7iexVj8';
+        const supabaseClient = createClient(supabaseUrl, supabaseKey);
+
+        const Icon = ({ name, size = 24, className = "" }) => {
+            const icons = {
+                user: "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
+                check: "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+                x: "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
+                alert: "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z",
+                chart: "M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z",
+                refresh: "M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z",
+                settings: "M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z",
+                back: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
+            };
+            return (
+                <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+                    <path d={icons[name] || ""} />
+                </svg>
+            );
+        };
+
+        const AdminPanel = () => {
+            const [sessions, setSessions] = useState({ active: [], completed: [] });
+            const [loading, setLoading] = useState(true);
+            const [selectedSession, setSelectedSession] = useState(null);
+            const [selectedCase, setSelectedCase] = useState(null);
+            const [activeTab, setActiveTab] = useState('stats');
+            const [accounts, setAccounts] = useState([]);
+            const [newAccount, setNewAccount] = useState({ login: '', password: '', fullName: '' });
+
+            useEffect(() => {
+                loadData();
+                const interval = setInterval(loadData, 5000);
+                return () => clearInterval(interval);
+            }, []);
+
+            const loadData = async () => {
+                try {
+                    const { data: accountsData } = await supabaseClient.from('accounts').select('*');
+                    setAccounts(accountsData || []);
+
+                    const { data: sessionsData } = await supabaseClient.from('sessions').select('*');
+                    const activeSessions = [];
+                    const completedSessions = [];
+
+                    for (const session of sessionsData || []) {
+                        const { data: casesData } = await supabaseClient.from('cases').select('*').eq('session_id', session.session_id);
+                        session.casesData = casesData || [];
+                        if (session.status === 'active') {
+                            activeSessions.push(session);
+                        } else {
+                            completedSessions.push(session);
+                        }
+                    }
+
+                    setSessions({
+                        active: activeSessions,
+                        completed: completedSessions.sort((a, b) => new Date(b.logout_time || b.login_time) - new Date(a.logout_time || a.login_time))
+                    });
+                    setLoading(false);
+                } catch (error) {
+                    console.error('Load error:', error);
+                    setLoading(false);
+                }
+            };
+
+            const handleCreateAccount = async () => {
+                if (!newAccount.login.trim() || !newAccount.password.trim() || !newAccount.fullName.trim()) {
+                    alert('Заполните все поля');
+                    return;
+                }
+                if (accounts.some(a => a.login === newAccount.login)) {
+                    alert('Логин уже существует');
+                    return;
+                }
+                try {
+                    const { error } = await supabaseClient.from('accounts').insert({
+                        login: newAccount.login,
+                        password: newAccount.password,
+                        full_name: newAccount.fullName,
+                        created_at: new Date().toISOString()
+                    });
+                    if (error) throw error;
+                    setNewAccount({ login: '', password: '', fullName: '' });
+                    await loadData();
+                    alert('Учетная запись создана!');
+                } catch (error) {
+                    alert('Ошибка: ' + error.message);
+                }
+            };
+
+            const handleDeleteAccount = async (login) => {
+                if (confirm(`Удалить ${login}?`)) {
+                    try {
+                        await supabaseClient.from('accounts').delete().eq('login', login);
+                        await loadData();
+                    } catch (error) {
+                        alert('Ошибка: ' + error.message);
+                    }
+                }
+            };
+
+            const formatDateTime = (isoString) => {
+                if (!isoString) return '-';
+                return new Date(isoString).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            };
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8 flex items-center justify-center">
+                        <div className="text-gray-600 text-xl">Загрузка...</div>
+                    </div>
+                );
+            }
+
+            if (selectedCase) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+                        <div className="max-w-6xl mx-auto">
+                            <button onClick={() => setSelectedCase(null)} className="mb-6 px-6 py-2 bg-white rounded-lg shadow flex items-center gap-2">
+                                <Icon name="back" size={18} />Назад
+                            </button>
+                            <div className="bg-white rounded-xl shadow-lg p-8">
+                                <h2 className="text-2xl font-bold mb-6">Детали диалога</h2>
+                                <div className="grid md:grid-cols-2 gap-6 mb-6">
+                                    <div className="bg-blue-50 rounded-lg p-4">
+                                        <h3 className="font-bold text-blue-800 mb-2">Сотрудник</h3>
+                                        <p className="text-lg font-semibold">{selectedCase.employee}</p>
+                                    </div>
+                                    <div className="bg-purple-50 rounded-lg p-4">
+                                        <h3 className="font-bold text-purple-800 mb-2">Клиент</h3>
+                                        <p className="text-lg font-semibold">{selectedCase.client}</p>
+                                    </div>
+                                </div>
+                                <div className="grid md:grid-cols-3 gap-4 mb-6">
+                                    <div className={`rounded-lg p-4 ${selectedCase.payment_result ? 'bg-green-50' : 'bg-red-50'}`}>
+                                        <Icon name={selectedCase.payment_result ? "check" : "x"} size={24} className={selectedCase.payment_result ? 'text-green-600' : 'text-red-600'} />
+                                        <p className="font-bold">{selectedCase.payment_result ? 'Успех' : 'Неудача'}</p>
+                                    </div>
+                                    <div className="bg-indigo-50 rounded-lg p-4">
+                                        <p className="text-2xl font-bold text-indigo-600">{selectedCase.motivations_used}</p>
+                                        <p className="text-sm">Мотиваций</p>
+                                    </div>
+                                    <div className={`rounded-lg p-4 ${selectedCase.archetype_correct ? 'bg-green-50' : 'bg-red-50'}`}>
+                                        <p className="font-bold">{selectedCase.archetype_correct ? '✓ Угадал' : '✗ Не угадал'}</p>
+                                    </div>
+                                </div>
+                                <div className="mb-6">
+                                    <h3 className="text-lg font-bold mb-4">Диалог</h3>
+                                    <div className="space-y-3 bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                                        {selectedCase.dialogue?.map((msg, idx) => (
+                                            <div key={idx} className={msg.speaker === 'manager' ? 'text-right' : 'text-left'}>
+                                                <div className={`inline-block max-w-md rounded-lg p-3 ${msg.speaker === 'manager' ? msg.isRude ? 'bg-red-600 text-white' : 'bg-indigo-600 text-white' : 'bg-gray-200'}`}>
+                                                    <p className="text-sm">{msg.text}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (selectedSession) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+                        <div className="max-w-6xl mx-auto">
+                            <button onClick={() => setSelectedSession(null)} className="mb-6 px-6 py-2 bg-white rounded-lg shadow flex items-center gap-2">
+                                <Icon name="back" size={18} />Назад
+                            </button>
+                            <div className="bg-white rounded-xl shadow-lg p-8">
+                                <h2 className="text-2xl font-bold mb-6">Детали сессии</h2>
+                                <div className="bg-blue-50 rounded-lg p-6 mb-6">
+                                    <h3 className="font-bold text-blue-800 mb-2">{selectedSession.employee}</h3>
+                                    <p className="text-sm text-gray-600">Вход: {formatDateTime(selectedSession.login_time)}</p>
+                                </div>
+                                <h3 className="text-xl font-bold mb-4">Диалоги ({selectedSession.casesData?.length || 0})</h3>
+                                {!selectedSession.casesData?.length ? (
+                                    <p className="text-center text-gray-500 py-8">Нет диалогов</p>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {selectedSession.casesData.map((c, idx) => (
+                                            <div key={idx} onClick={() => setSelectedCase(c)} className="border-2 rounded-lg p-4 hover:border-indigo-300 cursor-pointer">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="font-bold">{c.client}</p>
+                                                    <span className={`px-3 py-1 rounded-full text-sm ${c.payment_result ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {c.payment_result ? 'Успех' : 'Неудача'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            const totalCases = sessions.completed.reduce((sum, s) => sum + (s.casesData?.length || 0), 0);
+            const successfulCases = sessions.completed.reduce((sum, s) => sum + (s.casesData?.filter(c => c.payment_result).length || 0), 0);
+            const successRate = totalCases > 0 ? Math.round((successfulCases / totalCases) * 100) : 0;
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="bg-white rounded-xl shadow-lg mb-6">
+                            <div className="flex border-b">
+                                <button onClick={() => setActiveTab('stats')} className={`flex-1 px-6 py-4 font-semibold flex items-center justify-center gap-2 ${activeTab === 'stats' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`}>
+                                    <Icon name="chart" size={20} />Статистика
+                                </button>
+                                <button onClick={() => setActiveTab('accounts')} className={`flex-1 px-6 py-4 font-semibold flex items-center justify-center gap-2 ${activeTab === 'accounts' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`}>
+                                    <Icon name="settings" size={20} />Учётные записи
+                                </button>
+                            </div>
+                        </div>
+
+                        {activeTab === 'stats' && (
+                            <>
+                                <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h1 className="text-3xl font-bold">Статистика</h1>
+                                        <button onClick={loadData} className="px-4 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2">
+                                            <Icon name="refresh" size={18} />Обновить
+                                        </button>
+                                    </div>
+                                    <div className="grid md:grid-cols-4 gap-4">
+                                        <div className="bg-blue-50 rounded-lg p-4 text-center">
+                                            <div className="text-3xl font-bold text-blue-600">{sessions.active.length + sessions.completed.length}</div>
+                                            <div className="text-sm">Всего сессий</div>
+                                        </div>
+                                        <div className="bg-green-50 rounded-lg p-4 text-center">
+                                            <div className="text-3xl font-bold text-green-600">{sessions.active.length}</div>
+                                            <div className="text-sm">Активных</div>
+                                        </div>
+                                        <div className="bg-purple-50 rounded-lg p-4 text-center">
+                                            <div className="text-3xl font-bold text-purple-600">{totalCases}</div>
+                                            <div className="text-sm">Диалогов</div>
+                                        </div>
+                                        <div className="bg-orange-50 rounded-lg p-4 text-center">
+                                            <div className="text-3xl font-bold text-orange-600">{successRate}%</div>
+                                            <div className="text-sm">Успешность</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-xl shadow-lg p-6">
+                                    <h2 className="text-xl font-bold mb-4">Сессии</h2>
+                                    {sessions.active.length === 0 && sessions.completed.length === 0 ? (
+                                        <p className="text-center text-gray-500 py-8">Нет сессий</p>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {[...sessions.active, ...sessions.completed].map((s, idx) => (
+                                                <div key={idx} onClick={() => setSelectedSession(s)} className="border-2 rounded-lg p-4 hover:border-indigo-300 cursor-pointer">
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="font-bold">{s.employee}</p>
+                                                        <span className={`px-3 py-1 rounded-full text-sm ${s.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-200'}`}>
+                                                            {s.status === 'active' ? 'Активна' : 'Завершена'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+
+                        {activeTab === 'accounts' && (
+                            <div className="bg-white rounded-xl shadow-lg p-8">
+                                <h2 className="text-2xl font-bold mb-6">Управление учетными записями</h2>
+                                <div className="bg-gray-50 rounded-lg p-6 mb-6">
+                                    <h3 className="font-bold mb-4">Создать учетную запись</h3>
+                                    <div className="grid md:grid-cols-3 gap-4 mb-4">
+                                        <input type="text" placeholder="Логин" value={newAccount.login} onChange={(e) => setNewAccount({...newAccount, login: e.target.value})} className="px-4 py-2 border-2 rounded-lg" />
+                                        <input type="text" placeholder="Пароль" value={newAccount.password} onChange={(e) => setNewAccount({...newAccount, password: e.target.value})} className="px-4 py-2 border-2 rounded-lg" />
+                                        <input type="text" placeholder="ФИО" value={newAccount.fullName} onChange={(e) => setNewAccount({...newAccount, fullName: e.target.value})} className="px-4 py-2 border-2 rounded-lg" />
+                                    </div>
+                                    <button onClick={handleCreateAccount} className="px-6 py-2 bg-indigo-600 text-white rounded-lg">Создать</button>
+                                </div>
+                                <h3 className="font-bold mb-4">Существующие ({accounts.length})</h3>
+                                {accounts.length === 0 ? (
+                                    <p className="text-center text-gray-500 py-8">Нет учетных записей</p>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {accounts.map((acc, idx) => (
+                                            <div key={idx} className="border-2 rounded-lg p-4 flex items-center justify-between">
+                                                <div>
+                                                    <p className="font-bold">{acc.full_name}</p>
+                                                    <p className="text-sm text-gray-600">Логин: {acc.login} | Пароль: {acc.password}</p>
+                                                </div>
+                                                <button onClick={() => handleDeleteAccount(acc.login)} className="px-4 py-2 bg-red-100 text-red-700 rounded-lg">Удалить</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<AdminPanel />, document.getElementById('root'));
+    </script>
+</body>
+</html>
