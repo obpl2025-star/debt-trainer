@@ -62,10 +62,36 @@
                     const { data: sessionsData } = await supabaseClient.from('sessions').select('*');
                     const activeSessions = [];
                     const completedSessions = [];
+                    const now = new Date();
 
                     for (const session of sessionsData || []) {
                         const { data: casesData } = await supabaseClient.from('cases').select('*').eq('session_id', session.session_id);
                         session.casesData = casesData || [];
+                        
+                        // Автоматически закрываем сессии старше 30 минут
+                        if (session.status === 'active') {
+                            const loginTime = new Date(session.login_time);
+                            const minutesSinceLogin = (now - loginTime) / 1000 / 60;
+                            
+                            if (minutesSinceLogin > 30) {
+                                // Закрываем зависшую сессию
+                                try {
+                                    await supabaseClient
+                                        .from('sessions')
+                                        .update({ 
+                                            logout_time: now.toISOString(), 
+                                            status: 'completed' 
+                                        })
+                                        .eq('session_id', session.session_id);
+                                    
+                                    session.status = 'completed';
+                                    session.logout_time = now.toISOString();
+                                } catch (e) {
+                                    console.error('Error auto-closing session:', e);
+                                }
+                            }
+                        }
+                        
                         if (session.status === 'active') {
                             activeSessions.push(session);
                         } else {
