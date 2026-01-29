@@ -128,9 +128,26 @@
 
             // Автозакрытие сессии при закрытии вкладки
             useEffect(() => {
-                const handleBeforeUnload = async () => {
-                    if (employee?.sessionId) {
-                        try {
+                if (!employee?.sessionId) return;
+
+                const closeSession = async () => {
+                    try {
+                        // Используем sendBeacon для гарантированной отправки
+                        const data = {
+                            session_id: employee.sessionId,
+                            logout_time: new Date().toISOString(),
+                            status: 'completed'
+                        };
+                        
+                        // Формируем URL для Supabase REST API
+                        const url = `${supabaseUrl}/rest/v1/sessions?session_id=eq.${employee.sessionId}`;
+                        const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+                        
+                        // Пытаемся отправить через sendBeacon (более надёжно)
+                        const beaconSent = navigator.sendBeacon && navigator.sendBeacon(url, blob);
+                        
+                        // Если sendBeacon не сработал, используем обычный запрос
+                        if (!beaconSent) {
                             await supabaseClient
                                 .from('sessions')
                                 .update({ 
@@ -138,14 +155,40 @@
                                     status: 'completed' 
                                 })
                                 .eq('session_id', employee.sessionId);
-                        } catch (e) {
-                            console.error('Error closing session:', e);
                         }
+                    } catch (e) {
+                        console.error('Error closing session:', e);
                     }
                 };
 
+                // Обработчик для beforeunload (закрытие вкладки/браузера)
+                const handleBeforeUnload = (e) => {
+                    closeSession();
+                };
+
+                // Обработчик для visibility change (переключение вкладки)
+                const handleVisibilityChange = () => {
+                    if (document.visibilityState === 'hidden') {
+                        closeSession();
+                    }
+                };
+
+                // Обработчик для pagehide (iOS Safari)
+                const handlePageHide = (e) => {
+                    closeSession();
+                };
+
+                // Добавляем все обработчики
                 window.addEventListener('beforeunload', handleBeforeUnload);
-                return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+                window.addEventListener('pagehide', handlePageHide);
+
+                // Очищаем при размонтировании
+                return () => {
+                    window.removeEventListener('beforeunload', handleBeforeUnload);
+                    document.removeEventListener('visibilitychange', handleVisibilityChange);
+                    window.removeEventListener('pagehide', handlePageHide);
+                };
             }, [employee]);
 
             const handleEmployeeLogin = async () => {
