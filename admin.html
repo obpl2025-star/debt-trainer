@@ -248,6 +248,17 @@
             const totalCases = sessions.completed.reduce((sum, s) => sum + (s.casesData?.length || 0), 0);
             const successfulCases = sessions.completed.reduce((sum, s) => sum + (s.casesData?.filter(c => c.payment_result).length || 0), 0);
             const successRate = totalCases > 0 ? Math.round((successfulCases / totalCases) * 100) : 0;
+            
+            // Считаем общее количество ответов AI (клиентов)
+            const totalAIResponses = sessions.completed.reduce((sum, s) => {
+                return sum + (s.casesData?.reduce((caseSum, c) => {
+                    // В dialogue_history хранится массив сообщений
+                    // Считаем сообщения где speaker === 'client'
+                    const history = c.dialogue_history || [];
+                    const clientMessages = history.filter(msg => msg.speaker === 'client').length;
+                    return caseSum + clientMessages;
+                }, 0) || 0);
+            }, 0);
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
@@ -272,7 +283,7 @@
                                             <Icon name="refresh" size={18} />Обновить
                                         </button>
                                     </div>
-                                    <div className="grid md:grid-cols-4 gap-4">
+                                    <div className="grid md:grid-cols-5 gap-4">
                                         <div className="bg-blue-50 rounded-lg p-4 text-center">
                                             <div className="text-3xl font-bold text-blue-600">{sessions.active.length + sessions.completed.length}</div>
                                             <div className="text-sm">Всего сессий</div>
@@ -284,6 +295,10 @@
                                         <div className="bg-purple-50 rounded-lg p-4 text-center">
                                             <div className="text-3xl font-bold text-purple-600">{totalCases}</div>
                                             <div className="text-sm">Диалогов</div>
+                                        </div>
+                                        <div className="bg-pink-50 rounded-lg p-4 text-center">
+                                            <div className="text-3xl font-bold text-pink-600">{totalAIResponses}</div>
+                                            <div className="text-sm">Ответов AI</div>
                                         </div>
                                         <div className="bg-orange-50 rounded-lg p-4 text-center">
                                             <div className="text-3xl font-bold text-orange-600">{successRate}%</div>
